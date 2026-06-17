@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'models/partida.dart';
+import 'models/time.dart';
+import 'screens/placar_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -32,6 +35,25 @@ class _NovaPartidaPageState extends State<NovaPartidaPage> {
 
   final TextEditingController timeAController = TextEditingController();
   final TextEditingController timeBController = TextEditingController();
+
+  void _iniciarPartida() {
+    final partida = Partida(
+      timeA: Time(
+        nome: timeAController.text.isEmpty ? 'Nos' : timeAController.text,
+      ),
+      timeB: Time(
+        nome: timeBController.text.isEmpty ? 'Eles' : timeBController.text,
+      ),
+      metaPontos: jogadoresSelecionado == 4 ? 12 : 18,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlacarScreen(partida: partida),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,9 +140,7 @@ class _NovaPartidaPageState extends State<NovaPartidaPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: zerar placar e ir para a próxima tela
-                  },
+                  onPressed: _iniciarPartida,
                   child: const Text('começar'),
                 ),
               ),
