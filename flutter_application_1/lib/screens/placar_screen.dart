@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/partida.dart';
-import '../models/rodada.dart';
+import '../theme/app_theme.dart';
 import '../widgets/modal_truco.dart';
+import '../database/database.dart';
 
 class PlacarScreen extends StatefulWidget {
   final Partida partida;
-
   const PlacarScreen({super.key, required this.partida});
 
   @override
@@ -13,224 +13,276 @@ class PlacarScreen extends StatefulWidget {
 }
 
 class _PlacarScreenState extends State<PlacarScreen> {
-  void _alterarPontoTimeA(int delta) {
-    setState(() {
-      widget.partida.timeA.pontos =
-          (widget.partida.timeA.pontos + delta).clamp(0, widget.partida.metaPontos);
-    });
+  late Partida partida;
+  bool _salvando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    partida = widget.partida;
+    _salvar();
   }
 
-  void _alterarPontoTimeB(int delta) {
-    setState(() {
-      widget.partida.timeB.pontos =
-          (widget.partida.timeB.pontos + delta).clamp(0, widget.partida.metaPontos);
-    });
+  Future<void> _salvar() async {
+    final id = await DatabaseHelper.instance.salvarPartida(partida);
+    setState(() => partida.id = id);
   }
 
-  Future<void> _abrirModalTruco() async {
+  void _alterarPonto(Time time, int delta) {
+    setState(() => time.pontos = (time.pontos + delta).clamp(0, partida.metaPontos));
+    DatabaseHelper.instance.salvarPartida(partida);
+    if (time.pontos >= partida.metaPontos) _encerrar(time.nome);
+  }
+
+  Future<void> _abrirTruco() async {
     final resultado = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => const ModalTruco(),
+      builder: (_) => const ModalTruco(),
     );
-
     if (resultado != null) {
-      setState(() {
-        widget.partida.rodadas.add(
-          Rodada(
-            descricao: 'Truco: $resultado',
-            pontosTimeA: widget.partida.timeA.pontos,
-            pontosTimeB: widget.partida.timeB.pontos,
-            data: DateTime.now(),
-          ),
-        );
-      });
+      setState(() => partida.rodadas.add(Rodada(
+        descricao: 'Truco → $resultado',
+        pontosTimeA: partida.timeA.pontos,
+        pontosTimeB: partida.timeB.pontos,
+        data: DateTime.now(),
+      )));
     }
+  }
+
+  Future<void> _encerrar(String vencedor) async {
+    setState(() => _salvando = true);
+    partida.vencedor = vencedor;
+    partida.dataFim = DateTime.now();
+    await DatabaseHelper.instance.salvarPartida(partida);
+    setState(() => _salvando = false);
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Partida encerrada!', style: TextStyle(color: AppColors.textPrimary)),
+        content: Text('$vencedor venceu!', style: const TextStyle(color: AppColors.neonGreen, fontSize: 18)),
+        actions: [
+          TextButton(
+            onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+            child: const Text('Nova partida', style: TextStyle(color: AppColors.neonGreen)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final partida = widget.partida;
-
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Placar dos dois times lado a lado
-              Row(
-                children: [
-                  Expanded(
-                    child: _cardPlacar(
-                      nome: partida.timeA.nome,
-                      pontos: partida.timeA.pontos,
-                      onMais: () => _alterarPontoTimeA(1),
-                      onMenos: () => _alterarPontoTimeA(-1),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _cardPlacar(
-                      nome: partida.timeB.nome,
-                      pontos: partida.timeB.pontos,
-                      onMais: () => _alterarPontoTimeB(1),
-                      onMenos: () => _alterarPontoTimeB(-1),
-                    ),
-                  ),
-                ],
-              ),
-
+              _Header(partida: partida, salvando: _salvando),
+              const SizedBox(height: 24),
+              Row(children: [
+                Expanded(child: _CardTime(time: partida.timeA, cor: AppColors.neonGreen, onMais: () => _alterarPonto(partida.timeA, 1), onMenos: () => _alterarPonto(partida.timeA, -1))),
+                const SizedBox(width: 12),
+                Expanded(child: _CardTime(time: partida.timeB, cor: AppColors.redAlert, onMais: () => _alterarPonto(partida.timeB, 1), onMenos: () => _alterarPonto(partida.timeB, -1))),
+              ]),
               const SizedBox(height: 16),
-
-              // Barra de progresso dupla
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  height: 12,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: partida.timeA.pontos == 0 ? 1 : partida.timeA.pontos,
-                        child: Container(color: Colors.greenAccent),
-                      ),
-                      Expanded(
-                        flex: partida.timeB.pontos == 0 ? 1 : partida.timeB.pontos,
-                        child: Container(color: Colors.redAccent),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Botão TRUCO
-              OutlinedButton(
-                onPressed: _abrirModalTruco,
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.amber, width: 2),
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
-                ),
-                child: const Text(
-                  'TRUCO',
-                  style: TextStyle(
-                    color: Colors.amber,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'HISTÓRICO',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-              ),
+              _BarraProgresso(partida: partida),
+              const SizedBox(height: 28),
+              Center(child: _BotaoTruco(onTap: _abrirTruco)),
+              const SizedBox(height: 28),
+              Text('RODADAS', style: Theme.of(context).textTheme.labelSmall),
               const SizedBox(height: 8),
-
-              Expanded(
-                child: ListView.builder(
-                  itemCount: partida.rodadas.length,
-                  itemBuilder: (context, index) {
-                    final rodada = partida.rodadas[partida.rodadas.length - 1 - index];
-                    return ListTile(
-                      dense: true,
-                      title: Text(
-                        rodada.descricao,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      trailing: Text(
-                        '${rodada.pontosTimeA} x ${rodada.pontosTimeB}',
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    // TODO: encerrar partida e ir para o histórico
-                  },
-                  child: const Text('encerrar partida'),
-                ),
-              ),
+              Expanded(child: _ListaRodadas(rodadas: partida.rodadas)),
+              const SizedBox(height: 12),
+              _BotaoEncerrar(onTap: () {
+                final lider = partida.timeA.pontos >= partida.timeB.pontos
+                    ? partida.timeA.nome
+                    : partida.timeB.nome;
+                _encerrar(lider);
+              }),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _cardPlacar({
-    required String nome,
-    required int pontos,
-    required VoidCallback onMais,
-    required VoidCallback onMenos,
-  }) {
-    return Card(
-      color: const Color(0xFF1E1E1E),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Text(
-              nome,
-              style: const TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Text(
-                '$pontos',
-                key: ValueKey(pontos),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GestureDetector(
-                  onTap: onMenos,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2A),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.remove, color: Colors.white, size: 18),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: onMais,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.greenAccent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.add, color: Colors.black, size: 18),
-                  ),
-                ),
-              ],
-            ),
-          ],
+//Widgets privados
+
+class _Header extends StatelessWidget {
+  final Partida partida;
+  final bool salvando;
+  const _Header({required this.partida, required this.salvando});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('placar', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 22)),
+          Text('${partida.timeA.nome}  ×  ${partida.timeB.nome}', style: Theme.of(context).textTheme.bodyMedium),
+        ]),
+        if (salvando)
+          const SizedBox(width: 16, height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.neonGreen)),
+      ],
+    );
+  }
+}
+
+class _CardTime extends StatelessWidget {
+  final Time time;
+  final Color cor;
+  final VoidCallback onMais, onMenos;
+  const _CardTime({required this.time, required this.cor, required this.onMais, required this.onMenos});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      child: Column(children: [
+        Text(time.nome, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        const SizedBox(height: 8),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+          child: Text('${time.pontos}', key: ValueKey(time.pontos),
+            style: TextStyle(color: cor, fontSize: 52, fontWeight: FontWeight.w800, letterSpacing: -2)),
         ),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          _BotaoPonto(icon: Icons.remove, cor: AppColors.textSecondary, fundo: AppColors.surfaceElevated, onTap: onMenos),
+          const SizedBox(width: 12),
+          _BotaoPonto(icon: Icons.add, cor: Colors.black, fundo: cor, onTap: onMais),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _BotaoPonto extends StatelessWidget {
+  final IconData icon;
+  final Color cor, fundo;
+  final VoidCallback onTap;
+  const _BotaoPonto({required this.icon, required this.cor, required this.fundo, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(color: fundo, borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: cor, size: 20),
+      ),
+    );
+  }
+}
+
+class _BarraProgresso extends StatelessWidget {
+  final Partida partida;
+  const _BarraProgresso({required this.partida});
+
+  @override
+  Widget build(BuildContext context) {
+    final ptsA = partida.timeA.pontos;
+    final ptsB = partida.timeB.pontos;
+    return Column(children: [
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text('$ptsA pts', style: const TextStyle(color: AppColors.neonGreen, fontSize: 12)),
+        Text('meta: ${partida.metaPontos}', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('$ptsB pts', style: const TextStyle(color: AppColors.redAlert, fontSize: 12)),
+      ]),
+      const SizedBox(height: 6),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: SizedBox(height: 10, child: Row(children: [
+          Expanded(flex: ptsA == 0 ? 1 : ptsA, child: Container(color: AppColors.neonGreen)),
+          Container(width: 2, color: AppColors.background),
+          Expanded(flex: ptsB == 0 ? 1 : ptsB, child: Container(color: AppColors.redAlert)),
+        ])),
+      ),
+    ]);
+  }
+}
+
+class _BotaoTruco extends StatelessWidget {
+  final VoidCallback onTap;
+  const _BotaoTruco({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2000),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.amber.withOpacity(0.6), width: 1.5),
+        ),
+        child: const Text('TRUCO', style: TextStyle(color: AppColors.amber, fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: 3)),
+      ),
+    );
+  }
+}
+
+class _ListaRodadas extends StatelessWidget {
+  final List<Rodada> rodadas;
+  const _ListaRodadas({required this.rodadas});
+
+  @override
+  Widget build(BuildContext context) {
+    if (rodadas.isEmpty) {
+      return Center(child: Text('nenhuma rodada ainda', style: Theme.of(context).textTheme.bodyMedium));
+    }
+    return ListView.builder(
+      itemCount: rodadas.length,
+      itemBuilder: (_, i) {
+        final r = rodadas[rodadas.length - 1 - i];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text(r.descricao, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+              Text('${r.pontosTimeA} × ${r.pontosTimeB}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BotaoEncerrar extends StatelessWidget {
+  final VoidCallback onTap;
+  const _BotaoEncerrar({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: AppColors.border),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: const Text('encerrar partida', style: TextStyle(color: AppColors.textSecondary)),
       ),
     );
   }
