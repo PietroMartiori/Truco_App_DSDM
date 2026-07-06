@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
-import 'screens/nova_partida_screen.dart';
+import 'screens/historico_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const TrucoApp());
 }
 
@@ -15,7 +16,7 @@ class TrucoApp extends StatelessWidget {
       title: 'Truco',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const NovaPartidaScreen(),
+      home: const HistoricoScreen(),
     );
   }
 }

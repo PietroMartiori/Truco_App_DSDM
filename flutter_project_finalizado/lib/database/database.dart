@@ -33,6 +33,8 @@ class DatabaseHelper {
         nomeTimeB TEXT NOT NULL,
         pontosTimeA INTEGER NOT NULL,
         pontosTimeB INTEGER NOT NULL,
+        fotoTimeA TEXT,
+        fotoTimeB TEXT,
         metaPontos INTEGER NOT NULL,
         numJogadores INTEGER NOT NULL,
         dataInicio TEXT NOT NULL,
@@ -40,10 +42,23 @@ class DatabaseHelper {
         vencedor TEXT
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE rodadas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        partidaId INTEGER NOT NULL,
+        descricao TEXT NOT NULL,
+        pontosTimeA INTEGER NOT NULL,
+        pontosTimeB INTEGER NOT NULL,
+        data TEXT NOT NULL,
+        FOREIGN KEY (partidaId) REFERENCES partidas (id) ON DELETE CASCADE
+      )
+    ''');
   }
 
   Future<int> salvarPartida(Partida partida) async {
     final db = await database;
+    int id;
     if (partida.id != null) {
       await db.update(
         'partidas',
@@ -51,10 +66,23 @@ class DatabaseHelper {
         where: 'id = ?',
         whereArgs: [partida.id],
       );
-      return partida.id!;
+      id = partida.id!;
     } else {
-      return await db.insert('partidas', partida.toMap());
+      id = await db.insert('partidas', partida.toMap());
     }
+
+    // Salvar rodadas
+    await db.delete('rodadas', where: 'partidaId = ?', whereArgs: [id]);
+    for (var rodada in partida.rodadas) {
+      await db.insert('rodadas', {
+        'partidaId': id,
+        'descricao': rodada.descricao,
+        'pontosTimeA': rodada.pontosTimeA,
+        'pontosTimeB': rodada.pontosTimeB,
+        'data': rodada.data.toIso8601String(),
+      });
+    }
+    return id;
   }
 
   Future<List<Partida>> buscarPartidas() async {
@@ -63,7 +91,27 @@ class DatabaseHelper {
       'partidas',
       orderBy: 'dataInicio DESC',
     );
-    return maps.map((m) => Partida.fromMap(m)).toList();
+
+    List<Partida> partidas = [];
+    for (var map in maps) {
+      Partida p = Partida.fromMap(map);
+      final rodadasMap = await db.query(
+        'rodadas',
+        where: 'partidaId = ?',
+        whereArgs: [p.id],
+        orderBy: 'data ASC',
+      );
+      p.rodadas = rodadasMap
+          .map((rm) => Rodada(
+                descricao: rm['descricao'] as String,
+                pontosTimeA: rm['pontosTimeA'] as int,
+                pontosTimeB: rm['pontosTimeB'] as int,
+                data: DateTime.parse(rm['data'] as String),
+              ))
+          .toList();
+      partidas.add(p);
+    }
+    return partidas;
   }
 
   Future<void> deletarPartida(int id) async {

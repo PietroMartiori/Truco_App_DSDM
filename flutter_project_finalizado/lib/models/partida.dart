@@ -1,8 +1,9 @@
 class Time {
   String nome;
   int pontos;
+  String? fotoPath;
 
-  Time({required this.nome, this.pontos = 0});
+  Time({required this.nome, this.pontos = 0, this.fotoPath});
 }
 
 class Rodada {
@@ -49,6 +50,8 @@ class Partida {
       'nomeTimeB': timeB.nome,
       'pontosTimeA': timeA.pontos,
       'pontosTimeB': timeB.pontos,
+      'fotoTimeA': timeA.fotoPath,
+      'fotoTimeB': timeB.fotoPath,
       'metaPontos': metaPontos,
       'numJogadores': numJogadores,
       'dataInicio': (dataInicio ?? DateTime.now()).toIso8601String(),
@@ -60,8 +63,16 @@ class Partida {
   static Partida fromMap(Map<String, dynamic> map) {
     return Partida(
       id: map['id'],
-      timeA: Time(nome: map['nomeTimeA'], pontos: map['pontosTimeA']),
-      timeB: Time(nome: map['nomeTimeB'], pontos: map['pontosTimeB']),
+      timeA: Time(
+        nome: map['nomeTimeA'],
+        pontos: map['pontosTimeA'],
+        fotoPath: map['fotoTimeA'],
+      ),
+      timeB: Time(
+        nome: map['nomeTimeB'],
+        pontos: map['pontosTimeB'],
+        fotoPath: map['fotoTimeB'],
+      ),
       metaPontos: map['metaPontos'],
       numJogadores: map['numJogadores'],
       dataInicio: DateTime.tryParse(map['dataInicio'] ?? ''),

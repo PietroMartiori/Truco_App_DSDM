@@ -1,11 +1,26 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
+class ResultadoTruco {
+  final String decisao;
+  final int pontos;
+
+  const ResultadoTruco({required this.decisao, required this.pontos});
+}
+
 class ModalTruco extends StatelessWidget {
-  const ModalTruco({super.key});
+  final int valorAtual;
+
+  const ModalTruco({super.key, required this.valorAtual});
+
+  List<int> get _opcoesPontuacao => const [3, 6, 9, 12];
 
   @override
   Widget build(BuildContext context) {
+    final opcoesDisponiveis = _opcoesPontuacao
+        .where((pontos) => pontos > valorAtual)
+        .toList();
+
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -38,36 +53,51 @@ class ModalTruco extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'o que o outro time decide?',
+            'quanto vale a rodada?',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              Expanded(
-                child: _botaoResposta(
-                  context,
-                  label: 'Aceitar',
-                  valor: 'aceitou',
-                  cor: AppColors.neonGreen,
-                  fundo: AppColors.neonGreenDim,
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: opcoesDisponiveis
+                .map((pontos) => _botaoPontuacao(context, pontos: pontos))
+                .toList(),
+          ),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: () => Navigator.pop(
+              context,
+              ResultadoTruco(decisao: 'recusou', pontos: valorAtual),
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3D1A1A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.redAlert.withValues(alpha: 0.4),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _botaoResposta(
-                  context,
-                  label: 'Recusar',
-                  valor: 'recusou',
-                  cor: AppColors.redAlert,
-                  fundo: const Color(0xFF3D1A1A),
+              child: const Center(
+                child: Text(
+                  'Recusar',
+                  style: TextStyle(
+                    color: AppColors.redAlert,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 12),
           GestureDetector(
-            onTap: () => Navigator.pop(context, 'correu'),
+            onTap: () => Navigator.pop(
+              context,
+              ResultadoTruco(decisao: 'correu', pontos: valorAtual),
+            ),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -92,27 +122,25 @@ class ModalTruco extends StatelessWidget {
     );
   }
 
-  Widget _botaoResposta(
-    BuildContext context, {
-    required String label,
-    required String valor,
-    required Color cor,
-    required Color fundo,
-  }) {
+  Widget _botaoPontuacao(BuildContext context, {required int pontos}) {
     return GestureDetector(
-      onTap: () => Navigator.pop(context, valor),
+      onTap: () => Navigator.pop(
+        context,
+        ResultadoTruco(decisao: 'aceitou', pontos: pontos),
+      ),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        width: 68,
+        padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: fundo,
+          color: AppColors.neonGreenDim,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cor.withOpacity(0.4)),
+          border: Border.all(color: AppColors.neonGreen.withValues(alpha: 0.4)),
         ),
         child: Center(
           child: Text(
-            label,
-            style: TextStyle(
-              color: cor,
+            '$pontos',
+            style: const TextStyle(
+              color: AppColors.neonGreen,
               fontWeight: FontWeight.w700,
               fontSize: 16,
             ),
