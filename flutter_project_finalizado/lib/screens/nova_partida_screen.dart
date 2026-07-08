@@ -69,11 +69,21 @@ class _NovaPartidaScreenState extends State<NovaPartidaScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 12),
-              Text('nova partida',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                      )),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                    tooltip: 'Voltar',
+                  ),
+                  const SizedBox(width: 4),
+                  Text('nova partida',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                          )),
+                ],
+              ),
               const SizedBox(height: 4),
               Text('configure antes de começar',
                   style: Theme.of(context).textTheme.bodyMedium),
@@ -152,7 +162,7 @@ class _NovaPartidaScreenState extends State<NovaPartidaScreen> {
                 )),
             Text('jogadores',
                 style: TextStyle(
-                  color: selecionado ? AppColors.neonGreen.withOpacity(0.7) : AppColors.textSecondary,
+                  color: selecionado ? AppColors.neonGreen.withValues(alpha: 0.7) : AppColors.textSecondary,
                   fontSize: 12,
                 )),
           ],

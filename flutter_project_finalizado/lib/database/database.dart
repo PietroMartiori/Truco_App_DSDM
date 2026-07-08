@@ -116,6 +116,7 @@ class DatabaseHelper {
 
   Future<void> deletarPartida(int id) async {
     final db = await database;
+    await db.delete('rodadas', where: 'partidaId = ?', whereArgs: [id]);
     await db.delete('partidas', where: 'id = ?', whereArgs: [id]);
   }
 }

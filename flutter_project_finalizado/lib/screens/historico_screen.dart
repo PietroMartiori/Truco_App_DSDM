@@ -30,6 +30,44 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
     });
   }
 
+  Future<void> _confirmarExclusao(Partida partida) async {
+    final id = partida.id;
+    if (id == null) return;
+
+    final excluir = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('excluir partida?'),
+        content: Text(
+          '${partida.timeA.nome} vs ${partida.timeB.nome}',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.redAlert),
+            child: const Text('excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (excluir != true) return;
+
+    await DatabaseHelper.instance.deletarPartida(id);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('partida excluida do historico')),
+    );
+    _carregarPartidas();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -103,6 +141,7 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
                             );
                             _carregarPartidas();
                           },
+                          onDelete: () => _confirmarExclusao(partidas[index]),
                         );
                       },
                     );
@@ -154,7 +193,12 @@ class _StatChip extends StatelessWidget {
 class _PartidaCard extends StatelessWidget {
   final Partida partida;
   final VoidCallback onTap;
-  const _PartidaCard({required this.partida, required this.onTap});
+  final VoidCallback onDelete;
+  const _PartidaCard({
+    required this.partida,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -188,8 +232,35 @@ class _PartidaCard extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('${partida.numJogadores} jogadores', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                          Text(dateStr, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                          Text(
+                            '${partida.numJogadores} jogadores',
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Text(
+                                dateStr,
+                                style: const TextStyle(
+                                  color: AppColors.textMuted,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                onPressed: onDelete,
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: AppColors.redAlert,
+                                ),
+                                iconSize: 18,
+                                visualDensity: VisualDensity.compact,
+                                tooltip: 'Excluir partida',
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -208,7 +279,7 @@ class _PartidaCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: (venceu ? AppColors.neonGreen : AppColors.redAlert).withOpacity(0.1),
+                              color: (venceu ? AppColors.neonGreen : AppColors.redAlert).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
