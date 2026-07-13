@@ -1,9 +1,11 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
+import '../widgets/foto_preview.dart';
 
+/// Tela que abre a camera e devolve o caminho da foto para a tela anterior.
 class FotoScreen extends StatefulWidget {
+  /// Texto que identifica qual foto o usuario esta capturando.
   final String titulo;
   const FotoScreen({super.key, required this.titulo});
 
@@ -11,19 +13,20 @@ class FotoScreen extends StatefulWidget {
   State<FotoScreen> createState() => _FotoScreenState();
 }
 
+/// Estado que guarda a ultima foto capturada para mostrar a pre-visualizacao.
 class _FotoScreenState extends State<FotoScreen> {
-  final ImagePicker _picker = ImagePicker();
+  /// Arquivo retornado pelo image_picker; nulo antes da primeira captura.
   XFile? _image;
 
+  /// Solicita uma imagem a camera; ao receber, redesenha a tela com a foto.
   Future<void> _tirarFoto() async {
-    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
-    if (photo != null) {
-      setState(() => _image = photo);
-    }
+    final foto = await ImagePicker().pickImage(source: ImageSource.camera);
+    if (foto != null) setState(() => _image = foto);
   }
 
   @override
   void initState() {
+    // Sempre execute a inicializacao original da classe State primeiro.
     super.initState();
     // Inicia a câmera automaticamente ao abrir a tela
     WidgetsBinding.instance.addPostFrameCallback((_) => _tirarFoto());
@@ -31,6 +34,8 @@ class _FotoScreenState extends State<FotoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // context permite acessar tamanho de tela, tema e navegacao.
+    // Stack sobrepoe foto, moldura de foco e controles inferiores.
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -41,16 +46,17 @@ class _FotoScreenState extends State<FotoScreen> {
       ),
       body: Stack(
         children: [
+          // Mostra a foto se ela foi capturada; caso contrario, mostra o icone.
           if (_image != null)
             Positioned.fill(
-              child: Image.file(File(_image!.path), fit: BoxFit.cover),
+              child: fotoPreview(_image!.path, fit: BoxFit.cover),
             )
           else
             const Center(
               child: Icon(Icons.camera_alt, color: AppColors.textMuted, size: 64),
             ),
           
-          // Moldura de foco (simulada)
+          // Moldura de foco apenas visual (a camera e controlada pelo plugin).
           Center(
             child: Container(
               width: MediaQuery.of(context).size.width * 0.8,
@@ -62,7 +68,7 @@ class _FotoScreenState extends State<FotoScreen> {
             ),
           ),
 
-          // Controles inferiores
+          // Cancelar, fotografar novamente e confirmar/devolver o caminho.
           Positioned(
             bottom: 40,
             left: 0,
@@ -97,9 +103,9 @@ class _FotoScreenState extends State<FotoScreen> {
                 ),
                 IconButton(
                   onPressed: () {
-                    if (_image != null) {
-                      Navigator.pop(context, _image!.path);
-                    }
+                    final path = _image?.path;
+                    // pop com resultado devolve o caminho para NovaPartidaScreen.
+                    if (path != null) Navigator.pop(context, path);
                   },
                   icon: const Icon(Icons.check, color: AppColors.neonGreen, size: 35),
                 ),

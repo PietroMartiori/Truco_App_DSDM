@@ -1,10 +1,11 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/partida.dart';
 import '../theme/app_theme.dart';
+import '../widgets/foto_preview.dart';
 import 'placar_screen.dart';
 import 'foto_screen.dart';
 
+/// Formulario para configurar os times e iniciar uma nova partida.
 class NovaPartidaScreen extends StatefulWidget {
   const NovaPartidaScreen({super.key});
 
@@ -12,13 +13,18 @@ class NovaPartidaScreen extends StatefulWidget {
   State<NovaPartidaScreen> createState() => _NovaPartidaScreenState();
 }
 
+/// Estado do formulario: jogadores, textos digitados e fotos dos times.
 class _NovaPartidaScreenState extends State<NovaPartidaScreen> {
+  /// Valor selecionado no cartao de 4 ou 6 jogadores.
   int jogadoresSelecionado = 4;
-  final TextEditingController _timeAController = TextEditingController();
-  final TextEditingController _timeBController = TextEditingController();
+  /// Controladores usados para ler o texto digitado nos dois TextField.
+  final _timeAController = TextEditingController();
+  final _timeBController = TextEditingController();
+  /// Caminhos/URLs devolvidos pela camera para cada time.
   String? _fotoTimeA;
   String? _fotoTimeB;
 
+  /// Cria o modelo Partida com placar zero e navega para a tela de placar.
   void _iniciarPartida() {
     final partida = Partida(
       timeA: Time(
@@ -34,33 +40,26 @@ class _NovaPartidaScreenState extends State<NovaPartidaScreen> {
       dataInicio: DateTime.now(),
     );
 
+    // push mantem esta tela na pilha para que o usuario possa voltar.
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => PlacarScreen(partida: partida)),
     );
   }
 
-  Future<void> _capturarFoto(bool isTimeA) async {
+  /// Abre a camera e usa o callback recebido para salvar a foto do time certo.
+  Future<void> _capturarFoto(String titulo, void Function(String) salvar) async {
     final path = await Navigator.push<String>(
       context,
-      MaterialPageRoute(
-        builder: (_) => FotoScreen(titulo: isTimeA ? 'foto time a' : 'foto time b'),
-      ),
+      MaterialPageRoute(builder: (_) => FotoScreen(titulo: titulo)),
     );
-
-    if (path != null) {
-      setState(() {
-        if (isTimeA) {
-          _fotoTimeA = path;
-        } else {
-          _fotoTimeB = path;
-        }
-      });
-    }
+    if (path != null) setState(() => salvar(path));
   }
 
   @override
   Widget build(BuildContext context) {
+    // Scaffold fornece a estrutura de pagina Material.
+    // Conteudo rolavel impede overflow quando o teclado aparece.
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -89,6 +88,7 @@ class _NovaPartidaScreenState extends State<NovaPartidaScreen> {
                   style: Theme.of(context).textTheme.bodyMedium),
               const SizedBox(height: 32),
               
+              // Selecao que tambem define a meta de pontos da partida.
               Text('JOGADORES', style: Theme.of(context).textTheme.labelSmall),
               const SizedBox(height: 10),
               Row(
@@ -102,12 +102,13 @@ class _NovaPartidaScreenState extends State<NovaPartidaScreen> {
               _MetaInfo(jogadores: jogadoresSelecionado),
               const SizedBox(height: 32),
 
+              // Campos reutilizaveis para cada um dos dois times.
               _InputTime(
                 label: 'TIME A',
                 controller: _timeAController,
                 hint: 'Ex: Nós',
                 fotoPath: _fotoTimeA,
-                onFotoTap: () => _capturarFoto(true),
+                onFotoTap: () => _capturarFoto('foto time a', (path) => _fotoTimeA = path),
               ),
               const SizedBox(height: 24),
               _InputTime(
@@ -115,7 +116,7 @@ class _NovaPartidaScreenState extends State<NovaPartidaScreen> {
                 controller: _timeBController,
                 hint: 'Ex: Eles',
                 fotoPath: _fotoTimeB,
-                onFotoTap: () => _capturarFoto(false),
+                onFotoTap: () => _capturarFoto('foto time b', (path) => _fotoTimeB = path),
               ),
 
               const SizedBox(height: 40),
@@ -137,6 +138,7 @@ class _NovaPartidaScreenState extends State<NovaPartidaScreen> {
     );
   }
 
+  /// Cartao clicavel que altera a quantidade de jogadores selecionada.
   Widget _cardJogadores(int valor) {
     final selecionado = jogadoresSelecionado == valor;
     return GestureDetector(
@@ -172,7 +174,9 @@ class _NovaPartidaScreenState extends State<NovaPartidaScreen> {
   }
 }
 
+/// Texto informativo que mostra a meta correspondente ao numero de jogadores.
 class _MetaInfo extends StatelessWidget {
+  /// Quantidade usada para decidir qual mensagem de meta sera exibida.
   final int jogadores;
   const _MetaInfo({required this.jogadores});
 
@@ -194,11 +198,17 @@ class _MetaInfo extends StatelessWidget {
   }
 }
 
+/// Campo composto: botao de foto e TextField para o nome de um time.
 class _InputTime extends StatelessWidget {
+  /// Rotulo acima do campo, como TIME A ou TIME B.
   final String label;
+  /// Controlador que sincroniza o texto digitado com a tela pai.
   final TextEditingController controller;
+  /// Exemplo de texto mostrado quando o campo esta vazio.
   final String hint;
+  /// Foto opcional a ser mostrada no botao de camera.
   final String? fotoPath;
+  /// Acao que pede a captura da foto ao widget pai.
   final VoidCallback onFotoTap;
 
   const _InputTime({
@@ -228,10 +238,11 @@ class _InputTime extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.border),
                 ),
+                // Com foto, exibe preview; sem foto, exibe o icone de camera.
                 child: fotoPath != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(11),
-                        child: Image.file(File(fotoPath!), fit: BoxFit.cover),
+                        child: fotoPreview(fotoPath!, fit: BoxFit.cover),
                       )
                     : const Icon(Icons.camera_alt_outlined, color: AppColors.textSecondary),
               ),

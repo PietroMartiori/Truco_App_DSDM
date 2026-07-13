@@ -1,12 +1,13 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/partida.dart';
 import '../database/database.dart';
 import '../theme/app_theme.dart';
+import '../widgets/foto_preview.dart';
 import 'timeline_screen.dart';
 import 'nova_partida_screen.dart';
 
+/// Tela inicial que consulta, filtra, abre e exclui partidas salvas.
 class HistoricoScreen extends StatefulWidget {
   const HistoricoScreen({super.key});
 
@@ -14,22 +15,33 @@ class HistoricoScreen extends StatefulWidget {
   State<HistoricoScreen> createState() => _HistoricoScreenState();
 }
 
+/// Estado com o Future da consulta e o texto usado como filtro.
 class _HistoricoScreenState extends State<HistoricoScreen> {
+  /// Promessa da lista lida no banco; FutureBuilder acompanha seu estado.
   late Future<List<Partida>> _partidasFuture;
+  /// Texto normalizado usado para filtrar nomes na lista.
   String _filtro = '';
 
+  /// Carrega a primeira lista sem setState, pois o widget ainda esta nascendo.
   @override
   void initState() {
     super.initState();
-    _carregarPartidas();
+    _partidasFuture = DatabaseHelper.instance.buscarPartidas();
   }
 
+  /// Pede uma nova consulta e redesenha os FutureBuilder da tela.
   void _carregarPartidas() {
     setState(() {
       _partidasFuture = DatabaseHelper.instance.buscarPartidas();
     });
   }
 
+  /// Retorna se o nome de algum time contem o texto digitado pelo usuario.
+  bool _correspondeAoFiltro(Partida partida) =>
+      partida.timeA.nome.toLowerCase().contains(_filtro) ||
+      partida.timeB.nome.toLowerCase().contains(_filtro);
+
+  /// Exibe confirmacao; somente apos aceitar remove a partida do banco.
   Future<void> _confirmarExclusao(Partida partida) async {
     final id = partida.id;
     if (id == null) return;
@@ -70,6 +82,7 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Scaffold engloba o conteudo seguro e o botao flutuante da tela.
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -109,8 +122,7 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
                   hintText: 'buscar partidas...',
                   prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
                 ),
-              ),
-              const SizedBox(height: 16),
+              ),              const SizedBox(height: 16),
               
               Expanded(
                 child: FutureBuilder<List<Partida>>(
@@ -120,10 +132,9 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
                       return const Center(child: CircularProgressIndicator(color: AppColors.neonGreen));
                     }
                     
-                    final partidas = snapshot.data?.where((p) => 
-                      p.timeA.nome.toLowerCase().contains(_filtro) || 
-                      p.timeB.nome.toLowerCase().contains(_filtro)
-                    ).toList() ?? [];
+                    final partidas = (snapshot.data ?? [])
+                        .where(_correspondeAoFiltro)
+                        .toList();
 
                     if (partidas.isEmpty) {
                       return Center(child: Text('nenhuma partida encontrada', style: Theme.of(context).textTheme.bodyMedium));
@@ -164,8 +175,11 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
   }
 }
 
+/// Pequeno cartao reutilizavel para uma estatistica do historico.
 class _StatChip extends StatelessWidget {
+  /// Titulo pequeno da estatistica, por exemplo PARTIDAS.
   final String label, value;
+  /// Cor que diferencia visualmente a estatistica.
   final Color color;
   const _StatChip({required this.label, required this.value, required this.color});
 
@@ -190,9 +204,13 @@ class _StatChip extends StatelessWidget {
   }
 }
 
+/// Cartao clicavel com resumo de uma partida e acao de excluir.
 class _PartidaCard extends StatelessWidget {
+  /// Dados que este cartao resume.
   final Partida partida;
+  /// Acao de abrir os detalhes ao tocar no cartao.
   final VoidCallback onTap;
+  /// Acao de solicitar exclusao pelo icone de lixeira.
   final VoidCallback onDelete;
   const _PartidaCard({
     required this.partida,
@@ -202,7 +220,7 @@ class _PartidaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool venceu = partida.vencedor == partida.timeA.nome;
+    final venceu = partida.vencedor == partida.timeA.nome;
     final dateStr = partida.dataInicio != null ? DateFormat('dd/MM/yyyy').format(partida.dataInicio!) : '-';
 
     return GestureDetector(
@@ -301,10 +319,13 @@ class _PartidaCard extends StatelessWidget {
   }
 }
 
+/// Mostra avatar, nome e pontos de um time dentro de um cartao de partida.
 class _TimeInfo extends StatelessWidget {
+  /// Nome e pontuacao mostrados neste lado do cartao.
   final String nome;
   final int pontos;
   final String? foto;
+  /// Quando true, inverte avatar/texto para o alinhamento do segundo time.
   final bool reverse;
   const _TimeInfo({required this.nome, required this.pontos, this.foto, this.reverse = false});
 
@@ -314,7 +335,7 @@ class _TimeInfo extends StatelessWidget {
       if (foto != null)
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
-          child: Image.file(File(foto!), width: 24, height: 24, fit: BoxFit.cover),
+          child: fotoPreview(foto!, width: 24, height: 24, fit: BoxFit.cover),
         )
       else
         const Icon(Icons.person, color: AppColors.textMuted, size: 24),

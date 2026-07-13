@@ -1,11 +1,13 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/partida.dart';
 import '../theme/app_theme.dart';
 import '../widgets/modal_truco.dart';
 import '../database/database.dart';
+import '../widgets/foto_preview.dart';
 
+/// Tela principal do jogo: altera placar, registra rodadas e encerra partida.
 class PlacarScreen extends StatefulWidget {
+  /// Modelo recebido da tela de configuracao e atualizado durante o jogo.
   final Partida partida;
   const PlacarScreen({super.key, required this.partida});
 
@@ -13,36 +15,48 @@ class PlacarScreen extends StatefulWidget {
   State<PlacarScreen> createState() => _PlacarScreenState();
 }
 
+/// Estado que guarda a partida em andamento, o valor do truco e salvamento.
 class _PlacarScreenState extends State<PlacarScreen> {
+  /// Copia de trabalho da partida que sera persistida no banco.
   late Partida partida;
+  /// Controla a exibicao do indicador de salvamento no cabecalho.
   bool _salvando = false;
+  /// Quantos pontos o proximo toque no botao + vai adicionar.
   int _valorRodada = 1;
 
+  /// Recebe a partida criada na tela anterior e a salva pela primeira vez.
   @override
   void initState() {
+    // Inicializa a infraestrutura do State antes de acessar widget.
     super.initState();
     partida = widget.partida;
     _salvar();
   }
 
+  /// Persiste a partida e atualiza seu id gerado pelo banco.
   Future<void> _salvar() async {
     final id = await DatabaseHelper.instance.salvarPartida(partida);
+    if (!mounted) return;
     setState(() => partida.id = id);
   }
 
+  /// Soma ou subtrai pontos respeitando minimo zero e a meta da partida.
   void _alterarPonto(Time time, int delta) {
     setState(
-      () => time.pontos = (time.pontos + delta).clamp(0, partida.metaPontos),
+      () =>
+          time.pontos = (time.pontos + delta).clamp(0, partida.metaPontos).toInt(),
     );
     DatabaseHelper.instance.salvarPartida(partida);
     if (time.pontos >= partida.metaPontos) _encerrar(time.nome);
   }
 
+  /// Aplica o valor atual da rodada e volta o valor padrao para 1.
   void _pontuar(Time time) {
     _alterarPonto(time, _valorRodada);
     setState(() => _valorRodada = 1);
   }
 
+  /// Abre o modal de truco e registra a decisao devolvida por ele.
   Future<void> _abrirTruco() async {
     final resultado = await showModalBottomSheet<ResultadoTruco>(
       context: context,
@@ -50,31 +64,28 @@ class _PlacarScreenState extends State<PlacarScreen> {
       isScrollControlled: true,
       builder: (_) => ModalTruco(valorAtual: _valorRodada),
     );
-    if (resultado != null) {
-      setState(() {
-        if (resultado.decisao == 'aceitou') {
-          _valorRodada = resultado.pontos;
-        }
-        partida.rodadas.add(
-          Rodada(
-            descricao: 'Truco ${resultado.pontos} pts - ${resultado.decisao}',
-            pontosTimeA: partida.timeA.pontos,
-            pontosTimeB: partida.timeB.pontos,
-            data: DateTime.now(),
-          ),
-        );
-      });
-      DatabaseHelper.instance.salvarPartida(partida);
-    }
+    if (resultado == null) return;
+
+    setState(() {
+      if (resultado.decisao == 'aceitou') _valorRodada = resultado.pontos;
+      partida.rodadas.add(Rodada(
+        descricao: 'Truco ${resultado.pontos} pts - ${resultado.decisao}',
+        pontosTimeA: partida.timeA.pontos,
+        pontosTimeB: partida.timeB.pontos,
+        data: DateTime.now(),
+      ));
+    });
+    DatabaseHelper.instance.salvarPartida(partida);
   }
 
+  /// Marca data e vencedor, salva e mostra dialogo final sem poder dispensar.
   Future<void> _encerrar(String vencedor) async {
     setState(() => _salvando = true);
     partida.vencedor = vencedor;
     partida.dataFim = DateTime.now();
     await DatabaseHelper.instance.salvarPartida(partida);
-    setState(() => _salvando = false);
     if (!mounted) return;
+    setState(() => _salvando = false);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -107,63 +118,119 @@ class _PlacarScreenState extends State<PlacarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // constraints informa espaco disponivel para adaptar retrato/paisagem.
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _Header(partida: partida, salvando: _salvando),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: _CardTime(
-                      time: partida.timeA,
-                      cor: AppColors.neonGreen,
-                      foto: partida.timeA.fotoPath,
-                      onMais: () => _pontuar(partida.timeA),
-                      onMenos: () => _alterarPonto(partida.timeA, -1),
-                    ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isLandscape = constraints.maxWidth > constraints.maxHeight;
+            final listHeight = isLandscape
+                ? (constraints.maxHeight - 160).clamp(110.0, 260.0).toDouble()
+                : (constraints.maxHeight * 0.24).clamp(120.0, 220.0).toDouble();
+
+            final cards = Row(
+              children: [
+                Expanded(
+                  child: _CardTime(
+                    time: partida.timeA,
+                    cor: AppColors.neonGreen,
+                    foto: partida.timeA.fotoPath,
+                    onMais: () => _pontuar(partida.timeA),
+                    onMenos: () => _alterarPonto(partida.timeA, -1),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _CardTime(
-                      time: partida.timeB,
-                      cor: AppColors.redAlert,
-                      foto: partida.timeB.fotoPath,
-                      onMais: () => _pontuar(partida.timeB),
-                      onMenos: () => _alterarPonto(partida.timeB, -1),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _BarraProgresso(partida: partida),
-              const SizedBox(height: 28),
-              Center(
-                child: _BotaoTruco(
-                  valorRodada: _valorRodada,
-                  onTap: _abrirTruco,
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _CardTime(
+                    time: partida.timeB,
+                    cor: AppColors.redAlert,
+                    foto: partida.timeB.fotoPath,
+                    onMais: () => _pontuar(partida.timeB),
+                    onMenos: () => _alterarPonto(partida.timeB, -1),
+                  ),
+                ),
+              ],
+            );
+
+            final truco = Center(
+              child: _BotaoTruco(valorRodada: _valorRodada, onTap: _abrirTruco),
+            );
+
+            final encerrar = _BotaoEncerrar(
+              onTap: () {
+                final lider = partida.timeA.pontos >= partida.timeB.pontos
+                    ? partida.timeA.nome
+                    : partida.timeB.nome;
+                _encerrar(lider);
+              },
+            );
+
+            final rodadas = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('RODADAS', style: Theme.of(context).textTheme.labelSmall),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: listHeight,
+                  child: _ListaRodadas(rodadas: partida.rodadas),
+                ),
+              ],
+            );
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: (constraints.maxHeight - 40).clamp(0.0, double.infinity),
+                ),
+                child: isLandscape
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Header(partida: partida, salvando: _salvando),
+                          const SizedBox(height: 16),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    cards,
+                                    const SizedBox(height: 12),
+                                    _BarraProgresso(partida: partida),
+                                    const SizedBox(height: 16),
+                                    truco,
+                                    const SizedBox(height: 16),
+                                    encerrar,
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              SizedBox(width: 320, child: rodadas),
+                            ],
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Header(partida: partida, salvando: _salvando),
+                          const SizedBox(height: 24),
+                          cards,
+                          const SizedBox(height: 16),
+                          _BarraProgresso(partida: partida),
+                          const SizedBox(height: 28),
+                          truco,
+                          const SizedBox(height: 28),
+                          rodadas,
+                          const SizedBox(height: 12),
+                          encerrar,
+                        ],
+                      ),
               ),
-              const SizedBox(height: 28),
-              Text('RODADAS', style: Theme.of(context).textTheme.labelSmall),
-              const SizedBox(height: 8),
-              Expanded(child: _ListaRodadas(rodadas: partida.rodadas)),
-              const SizedBox(height: 12),
-              _BotaoEncerrar(
-                onTap: () {
-                  final lider = partida.timeA.pontos >= partida.timeB.pontos
-                      ? partida.timeA.nome
-                      : partida.timeB.nome;
-                  _encerrar(lider);
-                },
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -172,8 +239,11 @@ class _PlacarScreenState extends State<PlacarScreen> {
 
 //Widgets privados
 
+/// Cabecalho com botao de voltar, titulo e indicador de salvamento.
 class _Header extends StatelessWidget {
+  /// Dados usados para formar o titulo e a meta no cabecalho.
   final Partida partida;
+  /// Define se o indicador visual de salvamento deve aparecer.
   final bool salvando;
   const _Header({required this.partida, required this.salvando});
 
@@ -211,10 +281,15 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// Cartao de um time: foto, nome, pontos e botoes de mais/menos.
 class _CardTime extends StatelessWidget {
+  /// Time representado pelo cartao.
   final Time time;
+  /// Cor de destaque exclusiva deste lado do placar.
   final Color cor;
+  /// Caminho/URL opcional da imagem de perfil.
   final String? foto;
+  /// Callbacks que a tela pai executa para somar e subtrair pontos.
   final VoidCallback onMais, onMenos;
   const _CardTime({
     required this.time,
@@ -240,8 +315,8 @@ class _CardTime extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  File(foto!),
+                child: fotoPreview(
+                  foto!,
                   width: 40,
                   height: 40,
                   fit: BoxFit.cover,
@@ -296,9 +371,13 @@ class _CardTime extends StatelessWidget {
   }
 }
 
+/// Botao circular reutilizavel para aumentar ou reduzir pontuacao.
 class _BotaoPonto extends StatelessWidget {
+  /// Simbolo (+ ou -) desenhado no centro do botao.
   final IconData icon;
+  /// Cores do icone/borda e do fundo do botao.
   final Color cor, fundo;
+  /// Acao recebida do cartao de time.
   final VoidCallback onTap;
   const _BotaoPonto({
     required this.icon,
@@ -324,7 +403,9 @@ class _BotaoPonto extends StatelessWidget {
   }
 }
 
+/// Compara visualmente o progresso de cada time ate a meta de pontos.
 class _BarraProgresso extends StatelessWidget {
+  /// Partida da qual sao lidos os pontos e a meta.
   final Partida partida;
   const _BarraProgresso({required this.partida});
 
@@ -376,8 +457,11 @@ class _BarraProgresso extends StatelessWidget {
   }
 }
 
+/// Botao que abre a escolha do valor da rodada de truco.
 class _BotaoTruco extends StatelessWidget {
+  /// Valor que aparece no rotulo do botao.
   final int valorRodada;
+  /// Abre o modal no widget pai.
   final VoidCallback onTap;
   const _BotaoTruco({required this.valorRodada, required this.onTap});
 
@@ -409,7 +493,9 @@ class _BotaoTruco extends StatelessWidget {
   }
 }
 
+/// Lista as rodadas em ordem inversa, deixando a mais nova no topo.
 class _ListaRodadas extends StatelessWidget {
+  /// Eventos que devem aparecer no historico da partida atual.
   final List<Rodada> rodadas;
   const _ListaRodadas({required this.rodadas});
 
@@ -462,7 +548,9 @@ class _ListaRodadas extends StatelessWidget {
   }
 }
 
+/// Botao para encerrar manualmente a partida com o lider como vencedor.
 class _BotaoEncerrar extends StatelessWidget {
+  /// Callback que encerra a partida no estado pai.
   final VoidCallback onTap;
   const _BotaoEncerrar({required this.onTap});
 

@@ -1,24 +1,32 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:timeline_tile/timeline_tile.dart';
 import 'package:intl/intl.dart';
 import '../models/partida.dart';
 import '../theme/app_theme.dart';
 
+/// Tela somente de leitura que detalha uma partida ja registrada.
 class TimelineScreen extends StatelessWidget {
+  /// Partida recebida do historico para exibicao sem edicao.
   final Partida partida;
   const TimelineScreen({super.key, required this.partida});
 
+
+  
+
   @override
   Widget build(BuildContext context) {
-    final bool venceu = partida.vencedor == partida.timeA.nome;
-    final dateStr = partida.dataInicio != null 
-        ? DateFormat('dd/MM/yyyy HH:mm').format(partida.dataInicio!) 
-        : '-';
+    // Calcula resultado, cor e data uma unica vez para reutilizar na interface.
+    final venceu = partida.vencedor == partida.timeA.nome;
+    final corResultado = venceu ? AppColors.neonGreen : AppColors.redAlert;
+    final dateStr = partida.dataInicio == null
+        ? '-'
+        : DateFormat('dd/MM/yyyy HH:mm').format(partida.dataInicio!);
 
+    // CustomScrollView combina app bar expansivel e lista eficiente de eventos.
     return Scaffold(
       body: CustomScrollView(
         slivers: [
+          // Cabecalho que diminui ao rolar a tela.
           SliverAppBar(
             expandedHeight: 160.0,
             floating: false,
@@ -31,7 +39,7 @@ class TimelineScreen extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      (venceu ? AppColors.neonGreen : AppColors.redAlert).withOpacity(0.2),
+                      corResultado.withOpacity(0.2),
                       AppColors.background,
                     ],
                   ),
@@ -55,7 +63,7 @@ class TimelineScreen extends StatelessWidget {
                       child: Text(
                         venceu ? 'VOCÊS VENCERAM!' : 'ELES VENCERAM',
                         style: TextStyle(
-                          color: venceu ? AppColors.neonGreen : AppColors.redAlert,
+                          color: corResultado,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -66,6 +74,7 @@ class TimelineScreen extends StatelessWidget {
               ),
             ),
           ),
+          // Bloco normal de detalhes dentro de uma lista de slivers.
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -85,6 +94,7 @@ class TimelineScreen extends StatelessWidget {
               ),
             ),
           ),
+          // Primeiro item e o inicio; os demais sao as rodadas gravadas.
           SliverList(
             delegate: SliverChildBuilderDelegate(
               (context, index) {
@@ -126,6 +136,7 @@ class TimelineScreen extends StatelessWidget {
     );
   }
 
+  /// Calcula e formata o intervalo entre inicio e fim da partida.
   String _calcularDuracao() {
     if (partida.dataInicio == null || partida.dataFim == null) return '-';
     final diff = partida.dataFim!.difference(partida.dataInicio!);
@@ -133,6 +144,7 @@ class TimelineScreen extends StatelessWidget {
     return '${diff.inHours}h ${diff.inMinutes % 60}min';
   }
 
+  /// Cria um evento visual da linha do tempo com icone, hora e descricao.
   Widget _buildTimelineTile({
     bool isFirst = false,
     bool isLast = false,
@@ -179,7 +191,9 @@ class TimelineScreen extends StatelessWidget {
   }
 }
 
+/// Linha reutilizavel de rotulo a esquerda e valor a direita.
 class _InfoRow extends StatelessWidget {
+  /// Texto descritivo a esquerda e valor correspondente a direita.
   final String label, value;
   const _InfoRow({required this.label, required this.value});
 
